@@ -6,11 +6,21 @@ import { revalidatePath } from "next/cache";
 
 // ========== Project Actions ==========
 
+export type ProjectState = {
+  errors?: {
+    name?: string[];
+  };
+  message?: string | null;
+};
+
 const ProjectSchema = z.object({
   name: z.string().min(1, { message: "Project name cannot be empty." }),
 });
 
-export async function createProject(formData: FormData) {
+export async function createProject(
+  prevState: ProjectState,
+  formData: FormData
+) {
   const validatedFields = ProjectSchema.safeParse({
     name: formData.get("name"),
   });
@@ -33,6 +43,7 @@ export async function createProject(formData: FormData) {
   }
 
   revalidatePath("/");
+  return { message: "Project created successfully." };
 }
 
 export async function getProjects() {
@@ -66,6 +77,11 @@ export async function deleteProject(id: string) {
 
 // ========== Competitor Actions ==========
 
+export type CompetitorState = {
+  formErrors?: Record<string, string[] | undefined>;
+  message?: string | null;
+};
+
 const CompetitorSchema = z.object({
   name: z.string().min(1, "Competitor name is required"),
   projectId: z.string().uuid("Invalid project ID"),
@@ -73,7 +89,10 @@ const CompetitorSchema = z.object({
   shop: z.string().url("Invalid shop URL").optional().or(z.literal("")),
 });
 
-export async function createCompetitor(formData: FormData) {
+export async function createCompetitor(
+  prevState: CompetitorState,
+  formData: FormData
+) {
   const rawData = {
     name: formData.get("name"),
     projectId: formData.get("projectId"),
@@ -85,8 +104,18 @@ export async function createCompetitor(formData: FormData) {
   const validatedFields = CompetitorSchema.safeParse(rawData);
   if (!validatedFields.success) {
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      formErrors: validatedFields.error.flatten().fieldErrors,
     };
+  }
+
+  // Validate PDP URLs
+  const pdpUrls = rawData.pdps as string[];
+  for (const pdp of pdpUrls) {
+    if (!z.string().url().safeParse(pdp).success) {
+      return {
+        formErrors: { pdps: ["One or more PDP URLs are invalid."] },
+      };
+    }
   }
 
   // Create competitor
@@ -139,6 +168,7 @@ export async function createCompetitor(formData: FormData) {
   }
 
   revalidatePath("/");
+  return { message: "Competitor created successfully." };
 }
 
 export async function deleteCompetitor(id: string) {
