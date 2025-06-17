@@ -35,10 +35,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-
-# tasks
-.cursor/
-/tasks
-
 # .env
 .env
+
+# Reference files
+.cursor/
+/tasks
+SUPABASE.md
