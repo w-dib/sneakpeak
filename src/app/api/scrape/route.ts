@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
 import { scrapeUrl } from "@/lib/scraper";
 import { generateDiff } from "@/lib/differ";
+import { sendEmail, ChangeDetail } from "@/lib/emailer";
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -12,83 +13,100 @@ export async function POST(request: Request) {
   }
 
   try {
-    // 1. Fetch all URLs to be scraped
-    const { data: urls, error: urlsError } = await supabase
-      .from("urls")
-      .select("id, url");
+    const { data: projects, error: projectsError } = await supabase.from(
+      "projects"
+    ).select(`
+        name,
+        competitors (
+          name,
+          urls (
+            id,
+            url,
+            page_type
+          )
+        )
+      `);
 
-    if (urlsError) {
-      throw new Error(`Failed to fetch URLs: ${urlsError.message}`);
-    }
-
-    if (!urls || urls.length === 0) {
+    if (projectsError)
+      throw new Error(`Failed to fetch projects: ${projectsError.message}`);
+    if (!projects || projects.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "No URLs to scrape.",
+        message: "No projects to scrape.",
       });
     }
 
-    // 2. Process each URL
-    for (const url of urls) {
-      // 2a. Get the most recent successful snapshot for this URL
-      const { data: lastSnapshot, error: lastSnapshotError } = await supabase
-        .from("snapshots")
-        .select("content")
-        .eq("url_id", url.id)
-        .eq("status", "Success")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+    const allChanges: ChangeDetail[] = [];
 
-      if (lastSnapshotError && lastSnapshotError.code !== "PGRST116") {
-        // Ignore 'No rows found' error
-        console.error(
-          `Error fetching last snapshot for ${url.url}:`,
-          lastSnapshotError
-        );
-        continue; // Skip to next URL
-      }
+    for (const project of projects) {
+      for (const competitor of project.competitors) {
+        for (const url of competitor.urls) {
+          const { data: lastSnapshot } = await supabase
+            .from("snapshots")
+            .select("content")
+            .eq("url_id", url.id)
+            .eq("status", "Success")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
 
-      // 2b. Scrape the current content
-      const scrapeResult = await scrapeUrl(url.url);
+          const scrapeResult = await scrapeUrl(url.url);
 
-      // 2c. Store the new snapshot
-      const { data: newSnapshot, error: newSnapshotError } = await supabase
-        .from("snapshots")
-        .insert({
-          url_id: url.id,
-          content: scrapeResult.success ? scrapeResult.data : null,
-          status: scrapeResult.success ? "Success" : "Could not fetch",
-        })
-        .select("id")
-        .single();
+          const { data: newSnapshot, error: newSnapshotError } = await supabase
+            .from("snapshots")
+            .insert({
+              url_id: url.id,
+              content: scrapeResult.success ? scrapeResult.data : null,
+              status: scrapeResult.success ? "Success" : "Could not fetch",
+            })
+            .select("id")
+            .single();
 
-      if (newSnapshotError) {
-        console.error(
-          `Error inserting new snapshot for ${url.url}:`,
-          newSnapshotError
-        );
-        continue;
-      }
+          if (newSnapshotError) {
+            console.error(
+              `Error inserting new snapshot for ${url.url}:`,
+              newSnapshotError
+            );
+            continue;
+          }
 
-      // 2d. Compare and store diff if content has changed
-      if (scrapeResult.success && lastSnapshot?.content) {
-        const diffContent = generateDiff(
-          lastSnapshot.content,
-          scrapeResult.data
-        );
+          if (scrapeResult.success && lastSnapshot?.content) {
+            const diffContent = generateDiff(
+              lastSnapshot.content,
+              scrapeResult.data
+            );
+            if (diffContent !== "No significant changes detected.") {
+              const { error: diffError } = await supabase
+                .from("diffs")
+                .insert({
+                  snapshot_id: newSnapshot.id,
+                  diff_content: diffContent,
+                });
 
-        if (diffContent !== "No significant changes detected.") {
-          const { error: diffError } = await supabase.from("diffs").insert({
-            snapshot_id: newSnapshot.id,
-            diff_content: diffContent,
-          });
-
-          if (diffError) {
-            console.error(`Error inserting diff for ${url.url}:`, diffError);
+              if (diffError) {
+                console.error(
+                  `Error inserting diff for ${url.url}:`,
+                  diffError
+                );
+              } else {
+                allChanges.push({
+                  projectName: project.name,
+                  competitorName: competitor.name,
+                  url: url.url,
+                  pageType: url.page_type,
+                  diffContent,
+                });
+              }
+            }
           }
         }
       }
+    }
+
+    if (process.env.EMAIL_RECIPIENT) {
+      await sendEmail(allChanges, process.env.EMAIL_RECIPIENT);
+    } else {
+      console.log("No EMAIL_RECIPIENT set, skipping email.");
     }
 
     return NextResponse.json({

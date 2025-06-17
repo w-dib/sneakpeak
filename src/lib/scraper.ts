@@ -1,11 +1,10 @@
-import cheerio from "cheerio";
-
 export async function scrapeUrl(
   url: string
 ): Promise<
   { success: true; data: string } | { success: false; error: string }
 > {
   try {
+    const cheerio = await import("cheerio");
     const response = await fetch(url, {
       headers: {
         "User-Agent":
