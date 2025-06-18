@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "./supabase/server";
+import { scrapePdpLinks } from "./scraper";
 
 // ========== Project Actions ==========
 
@@ -116,8 +117,7 @@ export type CompetitorState = {
 const CompetitorSchema = z.object({
   name: z.string().min(1, "Competitor name is required"),
   projectId: z.string().uuid("Invalid project ID"),
-  homepage: z.string().url("Invalid homepage URL").optional().or(z.literal("")),
-  shop: z.string().url("Invalid shop URL").optional().or(z.literal("")),
+  shop: z.string().url("A valid shop/collection URL is required"),
 });
 
 export async function createCompetitor(
@@ -133,37 +133,41 @@ export async function createCompetitor(
     return { message: "Authentication required." };
   }
 
-  const rawData = {
+  const validatedFields = CompetitorSchema.safeParse({
     name: formData.get("name"),
     projectId: formData.get("projectId"),
-    homepage: formData.get("homepage"),
     shop: formData.get("shop"),
-    pdps: formData.getAll("pdps").filter((pdp) => pdp !== ""),
-  };
+  });
 
-  const validatedFields = CompetitorSchema.safeParse(rawData);
   if (!validatedFields.success) {
     return {
       formErrors: validatedFields.error.flatten().fieldErrors,
     };
   }
 
-  // Validate PDP URLs
-  const pdpUrls = rawData.pdps as string[];
-  for (const pdp of pdpUrls) {
-    if (!z.string().url().safeParse(pdp).success) {
-      return {
-        formErrors: { pdps: ["One or more PDP URLs are invalid."] },
-      };
-    }
+  const { name, projectId, shop } = validatedFields.data;
+
+  // 1. Scrape the links first. This prevents creating an orphan competitor if scraping fails.
+  const scrapeResult = await scrapePdpLinks(shop);
+
+  if (!scrapeResult.success) {
+    return { formErrors: { shop: [scrapeResult.error] } };
   }
 
-  // Create competitor
+  if (scrapeResult.links.length === 0) {
+    return {
+      formErrors: {
+        shop: ["No product links found. Please check the URL."],
+      },
+    };
+  }
+
+  // 2. Create the competitor in the database.
   const { data: competitor, error: competitorError } = await supabase
     .from("competitors")
     .insert({
-      name: validatedFields.data.name,
-      project_id: validatedFields.data.projectId,
+      name: name,
+      project_id: projectId,
     })
     .select()
     .single();
@@ -173,42 +177,37 @@ export async function createCompetitor(
     return { message: "Database Error: Failed to Create Competitor." };
   }
 
-  // Create associated URLs
-  const urlsToInsert = [];
-  if (validatedFields.data.homepage) {
-    urlsToInsert.push({
-      competitor_id: competitor.id,
-      url: validatedFields.data.homepage,
-      page_type: "Homepage",
-    });
-  }
-  if (validatedFields.data.shop) {
-    urlsToInsert.push({
-      competitor_id: competitor.id,
-      url: validatedFields.data.shop,
-      page_type: "Shop",
-    });
-  }
-  for (const pdp of rawData.pdps as string[]) {
-    urlsToInsert.push({
-      competitor_id: competitor.id,
-      url: pdp,
-      page_type: "PDP",
-    });
-  }
+  // 3. Prepare and insert the scraped PDP URLs and the main shop URL.
+  type UrlToInsert = {
+    competitor_id: string;
+    url: string;
+    page_type: "PDP" | "Shop" | "Homepage";
+  };
 
-  if (urlsToInsert.length > 0) {
-    const { error: urlError } = await supabase
-      .from("urls")
-      .insert(urlsToInsert);
-    if (urlError) {
-      console.error("Error creating URLs:", urlError);
-      return { message: "Database Error: Failed to create URLs." };
-    }
+  const urlsToInsert: UrlToInsert[] = scrapeResult.links.map((link) => ({
+    competitor_id: competitor.id,
+    url: link,
+    page_type: "PDP",
+  }));
+
+  urlsToInsert.push({
+    competitor_id: competitor.id,
+    url: shop,
+    page_type: "Shop",
+  });
+
+  const { error: urlError } = await supabase.from("urls").insert(urlsToInsert);
+
+  if (urlError) {
+    console.error("Error creating URLs:", urlError);
+    // At this point, the competitor exists but the URLs failed to save.
+    // A more robust solution could involve deleting the just-created competitor.
+    // For now, we will return a generic error.
+    return { message: "Database Error: Failed to save PDP URLs." };
   }
 
   revalidatePath("/");
-  return { message: "Competitor created successfully." };
+  return { message: "Competitor and products added successfully." };
 }
 
 export async function deleteCompetitor(id: string) {
