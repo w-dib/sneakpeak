@@ -93,6 +93,7 @@ export async function deleteProject(id: string) {
     return { message: "Authentication required." };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { error } = await supabase.from("projects").delete().match({ id });
 
   if (error) {
@@ -220,6 +221,7 @@ export async function deleteCompetitor(id: string) {
     return { message: "Authentication required." };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { error } = await supabase.from("competitors").delete().match({ id });
 
   if (error) {
