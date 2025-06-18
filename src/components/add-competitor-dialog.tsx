@@ -15,7 +15,8 @@ import { Label } from "@/components/ui/label";
 import { createCompetitor, CompetitorState } from "@/lib/actions";
 import { useFormState, useFormStatus } from "react-dom";
 import { useEffect, useRef, useState } from "react";
-import { PlusCircle, XCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Info } from "lucide-react";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -31,32 +32,13 @@ export function AddCompetitorDialog({ projectId }: { projectId: string }) {
   const [state, dispatch] = useFormState(createCompetitor, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [pdpUrls, setPdpUrls] = useState<string[]>([""]);
 
   useEffect(() => {
     if (!state?.formErrors && state?.message) {
       formRef.current?.reset();
-      setPdpUrls([""]);
       setIsOpen(false);
     }
   }, [state]);
-
-  const addPdpUrlInput = () => {
-    if (pdpUrls.length < 10) {
-      setPdpUrls([...pdpUrls, ""]);
-    }
-  };
-
-  const removePdpUrlInput = (index: number) => {
-    const newPdpUrls = pdpUrls.filter((_, i) => i !== index);
-    setPdpUrls(newPdpUrls);
-  };
-
-  const handlePdpUrlChange = (index: number, value: string) => {
-    const newPdpUrls = [...pdpUrls];
-    newPdpUrls[index] = value;
-    setPdpUrls(newPdpUrls);
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -66,12 +48,17 @@ export function AddCompetitorDialog({ projectId }: { projectId: string }) {
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New Competitor</DialogTitle>
-          <DialogDescription>
-            Add a new competitor to this project.
-          </DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={dispatch}>
           <input type="hidden" name="projectId" value={projectId} />
+          <Alert className="mb-4">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Pro Tip!</AlertTitle>
+            <AlertDescription>
+              Provide the URL to the main Shop or All Products page. The system
+              will find all product links on that page.
+            </AlertDescription>
+          </Alert>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Competitor Name</Label>
@@ -87,69 +74,17 @@ export function AddCompetitorDialog({ projectId }: { projectId: string }) {
               )}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="homepage">Homepage URL</Label>
+              <Label htmlFor="shop-url">Shop / Collection URL</Label>
               <Input
-                id="homepage"
-                name="homepage"
-                placeholder="https://competitor.com"
-              />
-              {state?.formErrors?.homepage && (
-                <p className="text-sm font-medium text-destructive">
-                  {state.formErrors.homepage}
-                </p>
-              )}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="shop">Shop URL</Label>
-              <Input
-                id="shop"
+                id="shop-url"
                 name="shop"
-                placeholder="https://competitor.com/shop"
+                placeholder="https://competitor.com/collections/all"
               />
               {state?.formErrors?.shop && (
                 <p className="text-sm font-medium text-destructive">
                   {state.formErrors.shop}
                 </p>
               )}
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Product Page URLs (PDPs)</Label>
-              {pdpUrls.map((url, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Input
-                    name="pdps"
-                    value={url}
-                    onChange={(e) => handlePdpUrlChange(index, e.target.value)}
-                    placeholder={`https://competitor.com/product/${index + 1}`}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removePdpUrlInput(index)}
-                    disabled={pdpUrls.length === 1 && url === ""}
-                  >
-                    <XCircle className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              {state?.formErrors?.pdps && (
-                <p className="text-sm font-medium text-destructive">
-                  {state.formErrors.pdps}
-                </p>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={addPdpUrlInput}
-                disabled={pdpUrls.length >= 10}
-              >
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Add PDP URL
-              </Button>
             </div>
           </div>
           <DialogFooter>
