@@ -2,8 +2,25 @@ import Image from "next/image";
 import { getProjects } from "@/lib/actions";
 import { AddProjectDialog } from "@/components/add-project-dialog";
 import { ProjectCard } from "@/components/project-card";
+import { createClient } from "@/lib/supabase/server";
+import { AuthForm } from "@/components/auth-form";
 
 export default async function Home() {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <div className="flex flex-col min-h-screen items-center justify-center">
+        <Image src="/logo.svg" alt="Sneakpeak logo" width={240} height={64} />
+        <AuthForm />
+      </div>
+    );
+  }
+
   const projects = await getProjects();
 
   type Url = {

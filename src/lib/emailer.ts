@@ -56,16 +56,10 @@ function formatEmailBody(changes: ChangeDetail[]): string {
 
 // Main function to send the email
 export async function sendEmail(changes: ChangeDetail[], recipient: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
+  if (!process.env.RESEND_API_KEY) {
     console.error("Resend API key is not set. Skipping email.");
     return;
   }
-
-  console.log(
-    `Resend API Key loaded. Starts with: ${apiKey.substring(0, 8)}...`
-  );
 
   if (changes.length === 0) {
     console.log("No changes detected, skipping email.");
@@ -75,20 +69,14 @@ export async function sendEmail(changes: ChangeDetail[], recipient: string) {
   const emailBody = formatEmailBody(changes);
 
   try {
-    const { data, error } = await resend.emails.send({
+    await resend.emails.send({
       from: "Sneakpeak Digest <hello@sneakpeak.waliddib.com>",
       to: recipient,
       subject: "Sneakpeak Daily Digest",
       html: emailBody,
     });
-
-    if (error) {
-      console.error("Resend API returned an error:", error);
-      return;
-    }
-
-    console.log("Email sent successfully via Resend:", data);
+    console.log(`Email sent to ${recipient}`);
   } catch (error) {
-    console.error("Caught an exception when trying to send email:", error);
+    console.error("Error sending email:", error);
   }
 }
