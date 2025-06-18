@@ -14,8 +14,10 @@ export default async function Home() {
 
   if (!user) {
     return (
-      <div className="flex flex-col min-h-screen items-center justify-center">
-        <Image src="/logo.svg" alt="Sneakpeak logo" width={240} height={64} />
+      <div className="flex flex-col min-h-screen items-center justify-center p-4">
+        <div className="mb-8">
+          <Image src="/logo.svg" alt="Sneakpeak logo" width={240} height={64} />
+        </div>
         <AuthForm />
       </div>
     );

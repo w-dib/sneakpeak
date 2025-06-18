@@ -1,6 +1,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +17,8 @@ import { FaGithub, FaGoogle } from "react-icons/fa";
 export function AuthForm() {
   const [email, setEmail] = useState("");
   const supabase = createClient();
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
   const getURL = () => {
     let url =
@@ -25,77 +34,105 @@ export function AuthForm() {
   };
 
   const signInWithGoogle = async () => {
+    setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: getURL(),
       },
     });
+    setLoading(false);
   };
 
   const signInWithGitHub = async () => {
+    setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
         redirectTo: getURL(),
       },
     });
+    setLoading(false);
   };
 
-  const signInWithMagicLink = async () => {
-    await supabase.auth.signInWithOtp({
+  const signInWithMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage("");
+    const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         emailRedirectTo: getURL(),
       },
     });
-    // You might want to show a message to the user to check their email.
+    if (error) {
+      setMessage("Could not authenticate. Please try again.");
+    } else {
+      setMessage("Check your email for the magic link!");
+    }
+    setLoading(false);
   };
 
   return (
-    <div className="w-full max-w-sm space-y-4">
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold">Sign In</h1>
-        <p className="text-gray-500 dark:text-gray-400">
-          Choose your preferred sign-in method
-        </p>
-      </div>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            placeholder="m@example.com"
-            required
-            type="email"
-            onChange={(e) => setEmail(e.target.value)}
-            value={email}
-          />
+    <Card className="w-full max-w-sm">
+      <CardHeader className="text-center">
+        <CardTitle>Welcome</CardTitle>
+        <CardDescription>Sign in to access your projects.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <Button
+            variant="outline"
+            onClick={signInWithGitHub}
+            disabled={loading}
+          >
+            <FaGithub className="mr-2 h-4 w-4" />
+            GitHub
+          </Button>
+          <Button
+            variant="outline"
+            onClick={signInWithGoogle}
+            disabled={loading}
+          >
+            <FaGoogle className="mr-2 h-4 w-4" />
+            Google
+          </Button>
         </div>
-        <Button className="w-full" onClick={signInWithMagicLink}>
-          Sign in with Magic Link
-        </Button>
-        <div className="relative">
+
+        <div className="relative my-4">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
+            <span className="bg-card px-2 text-muted-foreground">
+              Or with your email
             </span>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Button variant="outline" onClick={signInWithGoogle}>
-            <FaGoogle className="mr-2 h-4 w-4" />
-            Google
+
+        <form onSubmit={signInWithMagicLink}>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email address</Label>
+            <Input
+              id="email"
+              placeholder="you@example.com"
+              required
+              type="email"
+              onChange={(e) => setEmail(e.target.value)}
+              value={email}
+              disabled={loading}
+            />
+          </div>
+          <Button className="w-full mt-4" type="submit" disabled={loading}>
+            {loading ? "Sending..." : "Send Magic Link"}
           </Button>
-          <Button variant="outline" onClick={signInWithGitHub}>
-            <FaGithub className="mr-2 h-4 w-4" />
-            GitHub
-          </Button>
-        </div>
-      </div>
-    </div>
+        </form>
+        {message && (
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            {message}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
