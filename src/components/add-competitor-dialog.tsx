@@ -21,7 +21,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Adding..." : "Add Competitor"}
+      {pending ? "Adding Competitor..." : "Add Competitor"}
     </Button>
   );
 }
@@ -81,7 +81,7 @@ export function AddCompetitorDialog({ projectId }: { projectId: string }) {
               />
               {state?.formErrors?.shop && (
                 <p className="text-sm font-medium text-destructive">
-                  {state.formErrors.shop}
+                  {state.formErrors.shop.join(", ")}
                 </p>
               )}
             </div>
