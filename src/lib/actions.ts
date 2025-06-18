@@ -1,8 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { supabase } from "./supabase/client";
 import { revalidatePath } from "next/cache";
+import { createClient } from "./supabase/server";
 
 // ========== Project Actions ==========
 
@@ -21,6 +21,15 @@ export async function createProject(
   prevState: ProjectState,
   formData: FormData
 ) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { message: "Authentication required." };
+  }
+
   const validatedFields = ProjectSchema.safeParse({
     name: formData.get("name"),
   });
@@ -33,7 +42,9 @@ export async function createProject(
 
   const { name } = validatedFields.data;
 
-  const { error } = await supabase.from("projects").insert([{ name }]);
+  const { error } = await supabase
+    .from("projects")
+    .insert([{ name, user_id: user.id }]);
 
   if (error) {
     console.error("Error creating project:", error);
@@ -47,6 +58,16 @@ export async function createProject(
 }
 
 export async function getProjects() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    // Return empty array or handle error as appropriate
+    return [];
+  }
+
   const { data: projects, error } = await supabase.from("projects").select(`
     *,
     competitors (
@@ -63,6 +84,15 @@ export async function getProjects() {
 }
 
 export async function deleteProject(id: string) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { message: "Authentication required." };
+  }
+
   const { error } = await supabase.from("projects").delete().match({ id });
 
   if (error) {
@@ -93,6 +123,15 @@ export async function createCompetitor(
   prevState: CompetitorState,
   formData: FormData
 ) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { message: "Authentication required." };
+  }
+
   const rawData = {
     name: formData.get("name"),
     projectId: formData.get("projectId"),
@@ -172,6 +211,15 @@ export async function createCompetitor(
 }
 
 export async function deleteCompetitor(id: string) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { message: "Authentication required." };
+  }
+
   const { error } = await supabase.from("competitors").delete().match({ id });
 
   if (error) {

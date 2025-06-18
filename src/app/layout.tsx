@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { createClient } from "@/lib/supabase/server";
+import { UserAvatar } from "@/components/user-avatar";
+import Image from "next/image";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,17 +21,35 @@ export const metadata: Metadata = {
   description: "Track competitor websites with ease.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="en" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <div className="flex flex-col min-h-screen">
+          {user && (
+            <header className="flex items-center justify-between h-16 px-4 border-b shrink-0 md:px-6">
+              <Image
+                src="/logo.svg"
+                alt="Sneakpeak logo"
+                width={120}
+                height={32}
+              />
+              <UserAvatar user={user} />
+            </header>
+          )}
+          <main className="flex-1">{children}</main>
+        </div>
       </body>
     </html>
   );
