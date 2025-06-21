@@ -81,6 +81,8 @@ export function NewJobDialog({
   const [isUrlValid, setIsUrlValid] = useState(true);
   const [frequency, setFrequency] = useState("daily");
   const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pageHtml, setPageHtml] = useState<string | null>(null);
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUrl = e.target.value;
@@ -100,6 +102,32 @@ export function NewJobDialog({
       setIsUrlValid(true);
     } catch {
       setIsUrlValid(false);
+    }
+  };
+
+  const handleFetchPage = async () => {
+    if (!isUrlValid || !url) return;
+
+    setIsLoading(true);
+    setPageHtml(null);
+    try {
+      const response = await fetch("/api/browse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch page");
+      }
+
+      const data = await response.json();
+      setPageHtml(data.html);
+    } catch (error) {
+      console.error("Failed to fetch page:", error);
+      // Optionally, set an error state to show a message to the user
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -178,7 +206,9 @@ export function NewJobDialog({
           </TabsList>
           <TabsContent value="snapshot">
             <div className="space-y-2 py-4">
-              <Label htmlFor="url">Website URL*</Label>
+              <Label htmlFor="url">
+                Website URL<span className="text-destructive">*</span>
+              </Label>
               <div className="flex items-center space-x-2">
                 <Input
                   id="url"
@@ -187,8 +217,12 @@ export function NewJobDialog({
                   onChange={handleUrlChange}
                   className={!isUrlValid ? "border-destructive" : ""}
                 />
-                <Button type="submit" disabled={isGoDisabled}>
-                  Go
+                <Button
+                  type="button"
+                  onClick={handleFetchPage}
+                  disabled={isGoDisabled || isLoading}
+                >
+                  {isLoading ? "Loading..." : "Go"}
                 </Button>
               </div>
               {!isUrlValid && (
@@ -197,13 +231,29 @@ export function NewJobDialog({
                 </p>
               )}
             </div>
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed shadow-sm h-[200px] w-full">
-              <div className="flex flex-col items-center justify-center text-center">
-                <ImageIcon className="h-10 w-10 text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">
-                  A snapshot of your website will appear here
-                </p>
-              </div>
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed shadow-sm h-[280px] w-full overflow-hidden">
+              {isLoading && (
+                <div className="flex flex-col items-center justify-center text-center">
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Loading preview...
+                  </p>
+                </div>
+              )}
+              {pageHtml && !isLoading && (
+                <iframe
+                  srcDoc={pageHtml}
+                  className="w-full h-full border-0"
+                  sandbox="allow-same-origin"
+                />
+              )}
+              {!pageHtml && !isLoading && (
+                <div className="flex flex-col items-center justify-center text-center">
+                  <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    A snapshot of your website will appear here
+                  </p>
+                </div>
+              )}
             </div>
             <Accordion
               type="single"
@@ -217,7 +267,7 @@ export function NewJobDialog({
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="name" className="text-right">
-                        Job Title*
+                        Job Title<span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="name"
