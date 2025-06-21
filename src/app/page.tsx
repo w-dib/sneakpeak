@@ -10,6 +10,15 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
+import { NewJobDialog } from "@/components/new-job-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default async function Home() {
   const supabase = createClient();
@@ -27,7 +36,7 @@ export default async function Home() {
   }
 
   return (
-    <div className="bg-background text-foreground h-full">
+    <div className="text-foreground h-full">
       <div className="grid lg:grid-cols-5 gap-8 p-4 md:p-8 h-full">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <h2 className="text-xl font-semibold flex items-center">
@@ -41,29 +50,51 @@ export default async function Home() {
               <Button variant="ghost" size="icon">
                 <Filter className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon">
-                <ArrowUpDown className="h-5 w-5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <ArrowUpDown className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>Last Job Checked</DropdownMenuItem>
+                  <DropdownMenuItem>Newest First</DropdownMenuItem>
+                  <DropdownMenuItem>Oldest First</DropdownMenuItem>
+                  <DropdownMenuItem>Most Recent Alert</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>Alphabetical A-Z</DropdownMenuItem>
+                  <DropdownMenuItem>Alphabetical Z-A</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>Highest Frequency</DropdownMenuItem>
+                  <DropdownMenuItem>Lowest Frequency</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           <div className="flex justify-between items-center">
             <Button variant="ghost" size="icon">
               <RefreshCw className="h-5 w-5" />
             </Button>
-            <Button>
-              <PlusCircle className="mr-2 h-5 w-5" />
-              New Job
-            </Button>
+            <NewJobDialog email={user.email}>
+              <Button>
+                <PlusCircle className="mr-2 h-5 w-5" />
+                New Job
+              </Button>
+            </NewJobDialog>
           </div>
           <Card className="flex-grow flex flex-col items-center justify-center text-center p-6 bg-card/50">
             <CardContent className="flex flex-col items-center justify-center gap-4">
               <p className="text-muted-foreground">
                 Monitor your first page by creating a new job
               </p>
-              <Button>
-                <PlusCircle className="mr-2 h-5 w-5" />
-                New Job
-              </Button>
+              <NewJobDialog email={user.email}>
+                <Button>
+                  <PlusCircle className="mr-2 h-5 w-5" />
+                  New Job
+                </Button>
+              </NewJobDialog>
             </CardContent>
           </Card>
         </div>
