@@ -32,11 +32,11 @@ export default async function RootLayout({
   } = await supabase.auth.getUser();
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark h-full">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}
       >
-        <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col h-full">
           {user && (
             <header className="flex items-center justify-between h-16 px-4 border-b shrink-0 md:px-6">
               <Image
