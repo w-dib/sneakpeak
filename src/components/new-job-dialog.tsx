@@ -38,7 +38,15 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+
+type ElementData = {
+  selector: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 const initialSchedule = {
   mon: { enabled: true, range: [0, 24] },
@@ -82,7 +90,13 @@ export function NewJobDialog({
   const [frequency, setFrequency] = useState("daily");
   const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
   const [isLoading, setIsLoading] = useState(false);
-  const [pageHtml, setPageHtml] = useState<string | null>(null);
+  const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [elementMap, setElementMap] = useState<ElementData[]>([]);
+  const [hoveredElement, setHoveredElement] = useState<ElementData | null>(
+    null
+  );
+  const [selectedElements, setSelectedElements] = useState<ElementData[]>([]);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUrl = e.target.value;
@@ -109,7 +123,10 @@ export function NewJobDialog({
     if (!isUrlValid || !url) return;
 
     setIsLoading(true);
-    setPageHtml(null);
+    setScreenshot(null);
+    setElementMap([]);
+    setHoveredElement(null);
+    setSelectedElements([]);
     try {
       const response = await fetch("/api/browse", {
         method: "POST",
@@ -122,12 +139,43 @@ export function NewJobDialog({
       }
 
       const data = await response.json();
-      setPageHtml(data.html);
+      setScreenshot(data.screenshot);
+      setElementMap(data.elementMap);
     } catch (error) {
       console.error("Failed to fetch page:", error);
       // Optionally, set an error state to show a message to the user
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!imageContainerRef.current) return;
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top + imageContainerRef.current.scrollTop;
+
+    const hovered =
+      elementMap.find(
+        (el) =>
+          x >= el.x &&
+          x <= el.x + el.width &&
+          y >= el.y &&
+          y <= el.y + el.height
+      ) || null;
+
+    setHoveredElement(hovered);
+  };
+
+  const handleClick = () => {
+    if (hoveredElement) {
+      setSelectedElements((prev) => {
+        if (prev.find((el) => el.selector === hoveredElement.selector)) {
+          return prev.filter((el) => el.selector !== hoveredElement.selector);
+        } else {
+          return [...prev, hoveredElement];
+        }
+      });
     }
   };
 
@@ -231,7 +279,14 @@ export function NewJobDialog({
                 </p>
               )}
             </div>
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed shadow-sm h-[280px] w-full overflow-hidden">
+            <div
+              ref={imageContainerRef}
+              className={`relative flex flex-col items-center ${
+                screenshot ? "justify-start" : "justify-center"
+              } rounded-lg border border-dashed shadow-sm h-[280px] w-full overflow-auto`}
+              onMouseMove={handleMouseMove}
+              onClick={handleClick}
+            >
               {isLoading && (
                 <div className="flex flex-col items-center justify-center text-center">
                   <p className="mt-2 text-sm text-muted-foreground">
@@ -239,14 +294,39 @@ export function NewJobDialog({
                   </p>
                 </div>
               )}
-              {pageHtml && !isLoading && (
-                <iframe
-                  srcDoc={pageHtml}
-                  className="w-full h-full border-0"
-                  sandbox="allow-same-origin"
-                />
+              {screenshot && !isLoading && (
+                <div className="relative">
+                  <img
+                    src={screenshot}
+                    alt="Website screenshot"
+                    className="w-full h-auto"
+                  />
+                  {hoveredElement && (
+                    <div
+                      className="absolute border-2 border-blue-500 bg-blue-500/30"
+                      style={{
+                        left: hoveredElement.x,
+                        top: hoveredElement.y,
+                        width: hoveredElement.width,
+                        height: hoveredElement.height,
+                      }}
+                    />
+                  )}
+                  {selectedElements.map((el) => (
+                    <div
+                      key={el.selector}
+                      className="absolute border-2 border-green-500 bg-green-500/30"
+                      style={{
+                        left: el.x,
+                        top: el.y,
+                        width: el.width,
+                        height: el.height,
+                      }}
+                    />
+                  ))}
+                </div>
               )}
-              {!pageHtml && !isLoading && (
+              {!screenshot && !isLoading && (
                 <div className="flex flex-col items-center justify-center text-center">
                   <ImageIcon className="h-10 w-10 text-muted-foreground" />
                   <p className="mt-2 text-sm text-muted-foreground">
@@ -254,6 +334,40 @@ export function NewJobDialog({
                   </p>
                 </div>
               )}
+            </div>
+            <div className="flex justify-between items-center mt-2">
+              <div>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setSelectedElements(
+                      elementMap.filter((el) => el.selector === "body")
+                    )
+                  }
+                  disabled={!screenshot}
+                >
+                  Select Whole Page
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {selectedElements.length > 0
+                    ? `${selectedElements.length} element(s) selected`
+                    : "No elements selected"}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="link" size="sm" asChild>
+                  <a
+                    href={url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open page in your browser
+                  </a>
+                </Button>
+                <Button variant="link" size="sm">
+                  Report a problem
+                </Button>
+              </div>
             </div>
             <Accordion
               type="single"
